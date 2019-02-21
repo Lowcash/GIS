@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+  <Folder>
+    <name>Ground Overlays</name>
+    <description>Examples of ground overlays</description>
+    <GroundOverlay>
+      <name>Large-scale overlay on terrain</name>
+      <description>Lidar</description>
+      <Icon>
+        <href>URL_to_lidar_image_file</href>
+      </Icon>
+      <LatLonBox>
+        <north></north>
+        <south></south>
+        <east></east>
+        <west></west>
+        <rotation>0.0</rotation>
+      </LatLonBox>
+    </GroundOverlay>
+  </Folder>
+</kml>
