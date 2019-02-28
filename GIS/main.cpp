@@ -153,10 +153,10 @@ void fill_image(const char *filename, cv::Mat & heightmap_8uc1_img, float min_x,
 
 	stride = delta_x;
 
-	heightmap_8uc1_img = cv::Mat(cv::Size(delta_x + 1, delta_y + 1), CV_8UC1);
+	heightmap_8uc1_img = cv::Mat::zeros(cv::Size(delta_x + 1, delta_y + 1), CV_8UC1);
 
-	cv::Mat mass_count;
-	heightmap_8uc1_img.copyTo(mass_count);
+	cv::Mat mass = cv::Mat::zeros(cv::Size(delta_x + 1, delta_y + 1), CV_32FC1);
+	cv::Mat mass_count = cv::Mat::zeros(cv::Size(delta_x + 1, delta_y + 1), CV_32FC1);
 
 	std::ifstream fin(filename, std::ios::binary);
 
@@ -173,18 +173,22 @@ void fill_image(const char *filename, cv::Mat & heightmap_8uc1_img, float min_x,
 		fin.read(reinterpret_cast<char*>(&fz), sizeof(float));
 		fin.read(reinterpret_cast<char*>(&l_type), sizeof(int));
 
-		heightmap_8uc1_img.at<uchar>(heightmap_8uc1_img.rows - (int)round(max_y - fy + 0.5f) - 1, heightmap_8uc1_img.cols - (int)round(max_x - fx + 0.5f) - 1) += (int)round(max_z - fz + 0.5f) - 1;
-		mass_count.at<uchar>(heightmap_8uc1_img.rows - (int)round(max_y - fy + 0.5f) - 1, heightmap_8uc1_img.cols - (int)round(max_x - fx + 0.5f) - 1)++;
+		mass.at<float>(heightmap_8uc1_img.rows - (int)round(max_y - fy + 0.5f) - 1, heightmap_8uc1_img.cols - (int)round(max_x - fx + 0.5f) - 1) += fz;
+		mass_count.at<int>(heightmap_8uc1_img.rows - (int)round(max_y - fy + 0.5f) - 1, heightmap_8uc1_img.cols - (int)round(max_x - fx + 0.5f) - 1)++;
 	}
 	
-	for (int y = 0; y < heightmap_8uc1_img.rows; y++) {
-		for (int x = 0; x < heightmap_8uc1_img.cols; x++) {
-			float count = mass_count.at<uchar>(y, x);
-			
-			if (count > 0) {
-				//heightmap_8uc1_img.at<uchar>(y, x) /= count;
+	for (int y = 0; y < mass.rows; y++) {
+		for (int x = 0; x < mass.cols; x++) {
+			float sum = mass.at<float>(y, x);
+			float count = mass_count.at<int>(y, x);
 
-				heightmap_8uc1_img.at<uchar>(y, x) = heightmap_8uc1_img.at<uchar>(y, x) / max_z * 255.0f;
+			float average = sum / count;
+
+			float fullPercent = max_z - min_z;
+			float actualPercent = average - min_z;
+
+			if (count > 0) {
+				heightmap_8uc1_img.at<uchar>(y, x) = (actualPercent / fullPercent) * 255.0f;
 			}
 		}
 	}
