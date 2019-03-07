@@ -136,22 +136,13 @@ void get_min_max(const char *filename, float *a_min_x, float *a_max_x, float *a_
  * img - input image
  */
 void fill_image(const char *filename, cv::Mat & heightmap_8uc1_img, float min_x, float max_x, float min_y, float max_y, float min_z, float max_z) {
-	FILE *f = NULL;
-	int delta_x, delta_y, delta_z;
 	float fx, fy, fz;
 	int l_type;
-	int stride;
-	int num_points = 1;
-	float range = 0.0f;
-	float *sum_height = NULL;
-	int *sum_height_count = NULL;
 
 	// zjistime sirku a vysku obrazu
-	delta_x = round(max_x - min_x + 0.5f);
-	delta_y = round(max_y - min_y + 0.5f);
-	delta_z = round(max_z - min_z + 0.5f);
-
-	stride = delta_x;
+	int delta_x = round(max_x - min_x + 0.5f);
+	int delta_y = round(max_y - min_y + 0.5f);
+	int delta_z = round(max_z - min_z + 0.5f);
 
 	heightmap_8uc1_img = cv::Mat::zeros(cv::Size(delta_x + 1, delta_y + 1), CV_8UC1);
 
@@ -160,14 +151,6 @@ void fill_image(const char *filename, cv::Mat & heightmap_8uc1_img, float min_x,
 
 	std::ifstream fin(filename, std::ios::binary);
 
-	// 1:
-	// We allocate helper arrays, in which we store values from the lidar
-	// and the number of these values for each pixel
-
-	// 2:
-	// go through the file and assign values to the field
-	// beware that in S-JTSK the beginning of the co-ordinate system is at the bottom left,
-	// while in the picture it is top left
 	while (fin.read(reinterpret_cast<char*>(&fx), sizeof(float))) {
 		fin.read(reinterpret_cast<char*>(&fy), sizeof(float));
 		fin.read(reinterpret_cast<char*>(&fz), sizeof(float));
@@ -192,9 +175,6 @@ void fill_image(const char *filename, cv::Mat & heightmap_8uc1_img, float min_x,
 			}
 		}
 	}
-	// 3:
-	// assign values from the helper field into the image
-
 }
 
 
@@ -208,13 +188,65 @@ void make_edges(const cv::Mat & src_8uc1_img, cv::Mat & edgemap_8uc1_img) {
  * Threshold may be set experimentally.
  */
 void binarize_image(cv::Mat & src_8uc1_img) {
-	int x, y;
-	uchar value;
-
+	src_8uc1_img.forEach<unsigned char>([&](uchar &pixel, const int *position) {
+		pixel = pixel > 127 ? 255 : 0;
+	});
 }
 
 
 void dilate_and_erode_edgemap(cv::Mat & edgemap_8uc1_img) {
+	cv::Mat tmp = cv::Mat::zeros(edgemap_8uc1_img.size(), edgemap_8uc1_img.type());
+
+	//// dilate
+	edgemap_8uc1_img.forEach<uchar>([&](uchar &pixel, const int *position) {
+		int y = position[0], x = position[1];
+
+		if (y > 0 && y < edgemap_8uc1_img.rows &&
+			x > 0 && x < edgemap_8uc1_img.cols) {
+
+			if (pixel == 255) {
+				tmp.at<uchar>(y - 1, x - 1) = 255;
+				tmp.at<uchar>(y - 1, x + 0) = 255;
+				tmp.at<uchar>(y - 1, x + 1) = 255;
+				tmp.at<uchar>(y + 0, x - 1) = 255;
+				tmp.at<uchar>(y + 0, x + 0) = 255;
+				tmp.at<uchar>(y + 0, x + 1) = 255;
+				tmp.at<uchar>(y + 1, x - 1) = 255;
+				tmp.at<uchar>(y + 1, x + 0) = 255;
+				tmp.at<uchar>(y + 1, x + 1) = 255;
+			}
+		}
+	});
+
+	tmp.copyTo(edgemap_8uc1_img);
+
+	tmp.zeros(edgemap_8uc1_img.size(), edgemap_8uc1_img.type());
+
+	// erode
+	edgemap_8uc1_img.forEach<unsigned char>([&](uchar &pixel, const int *position) {
+		int y = position[0], x = position[1];
+		if (y > 0 && y < edgemap_8uc1_img.rows &&
+			x > 0 && x < edgemap_8uc1_img.cols) {
+
+			if (edgemap_8uc1_img.at<uchar>(y - 1, x - 1) != 255 ||
+				edgemap_8uc1_img.at<uchar>(y - 1, x + 0) != 255 ||
+				edgemap_8uc1_img.at<uchar>(y - 1, x + 1) != 255 ||
+				edgemap_8uc1_img.at<uchar>(y + 0, x - 1) != 255 ||
+				edgemap_8uc1_img.at<uchar>(y + 0, x + 0) != 255 ||
+				edgemap_8uc1_img.at<uchar>(y + 0, x + 1) != 255 ||
+				edgemap_8uc1_img.at<uchar>(y + 1, x - 1) != 255 ||
+				edgemap_8uc1_img.at<uchar>(y + 1, x + 0) != 255 ||
+				edgemap_8uc1_img.at<uchar>(y + 1, x + 1) != 255) {
+
+				tmp.at<uchar>(y, x) = 0;
+			}
+			else {
+				tmp.at<uchar>(y, x) = 255;
+			}
+		}
+	});
+
+	tmp.copyTo(edgemap_8uc1_img);
 }
 
 
@@ -243,7 +275,17 @@ void process_lidar(const char *txt_filename, const char *bin_filename, const cha
 
 	fill_image(bin_filename, heightmap_8uc1_img, min_x, max_x, min_y, max_y, min_z, max_z);
 
-	cv::imshow("Result", heightmap_8uc1_img);
+	make_edges(heightmap_8uc1_img, edgemap_8uc1_img);
+	binarize_image(edgemap_8uc1_img);
+	
+	cv::imshow("Show", heightmap_8uc1_img);
+	cv::imshow("Before morfologic operations", edgemap_8uc1_img);
+
+	for (int i = 0; i < 5; i++) {
+		dilate_and_erode_edgemap(edgemap_8uc1_img);
+	}
+
+	cv::imshow("After morfologic operations", edgemap_8uc1_img);
 	cv::waitKey(0);
 
 	// create images according to data from the source file
