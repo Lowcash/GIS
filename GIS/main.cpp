@@ -4,16 +4,17 @@
 #include <cmath>
 #include <fstream>
 #include <iostream>
-
+#include <chrono>
 #include <opencv2/opencv.hpp>
+#include <ctime>
 
 #include "defines.h"
 #include "utils.h"
 
-#define STEP1_WIN_NAME "Heightmap"
-#define STEP2_WIN_NAME "Edges"
-#define ZOOM           1
-
+#define STEP1_WIN_NAME			  "Heightmap"
+#define STEP2_WIN_NAME			  "Edges"
+#define ZOOM					  1
+#define NUM_MORFOLOGIC_OPERATIONS 2
 
 struct MouseProbe {
 	cv::Mat & heightmap_8uc1_img_;
@@ -159,22 +160,22 @@ void fill_image(const char *filename, cv::Mat & heightmap_8uc1_img, float min_x,
 		mass.at<float>(heightmap_8uc1_img.rows - (int)round(max_y - fy + 0.5f) - 1, heightmap_8uc1_img.cols - (int)round(max_x - fx + 0.5f) - 1) += fz;
 		mass_count.at<int>(heightmap_8uc1_img.rows - (int)round(max_y - fy + 0.5f) - 1, heightmap_8uc1_img.cols - (int)round(max_x - fx + 0.5f) - 1)++;
 	}
-	
-	for (int y = 0; y < mass.rows; y++) {
-		for (int x = 0; x < mass.cols; x++) {
-			float sum = mass.at<float>(y, x);
-			float count = mass_count.at<int>(y, x);
 
-			float average = sum / count;
+	mass.forEach<uchar>([&](uchar &pixel, const int *position) {
+		int y = position[0], x = position[1];
 
-			float fullPercent = max_z - min_z;
-			float actualPercent = average - min_z;
+		float sum = mass.at<float>(y, x);
+		float count = mass_count.at<int>(y, x);
 
-			if (count > 0) {
-				heightmap_8uc1_img.at<uchar>(y, x) = (actualPercent / fullPercent) * 255.0f;
-			}
+		float average = sum / count;
+
+		float fullPercent = max_z - min_z;
+		float actualPercent = average - min_z;
+
+		if (count > 0) {
+			heightmap_8uc1_img.at<uchar>(y, x) = (actualPercent / fullPercent) * 255.0f;
 		}
-	}
+	});
 }
 
 
@@ -278,14 +279,34 @@ void process_lidar(const char *txt_filename, const char *bin_filename, const cha
 	make_edges(heightmap_8uc1_img, edgemap_8uc1_img);
 	binarize_image(edgemap_8uc1_img);
 	
-	cv::imshow("Show", heightmap_8uc1_img);
-	cv::imshow("Before morfologic operations", edgemap_8uc1_img);
+	std::string windowNames[] = { "Show", "Before morfologic operations", "After morfologic operations" };
 
-	for (int i = 0; i < 5; i++) {
+	cv::namedWindow(windowNames[0]);
+	cv::namedWindow(windowNames[1]);
+	cv::namedWindow(windowNames[2]);
+
+	cv::moveWindow(windowNames[0], 0 * heightmap_8uc1_img.cols, 0 * heightmap_8uc1_img.rows);
+	cv::moveWindow(windowNames[1], 1 * edgemap_8uc1_img.cols  , 0 * edgemap_8uc1_img.rows);
+	cv::moveWindow(windowNames[2], 2 * edgemap_8uc1_img.cols  , 0 * edgemap_8uc1_img.rows);
+
+	cv::imshow(windowNames[0], heightmap_8uc1_img);
+	cv::imshow(windowNames[1], edgemap_8uc1_img);
+
+	auto start = std::chrono::system_clock::now();
+
+	for (int i = 0; i < NUM_MORFOLOGIC_OPERATIONS; i++) {
 		dilate_and_erode_edgemap(edgemap_8uc1_img);
 	}
 
-	cv::imshow("After morfologic operations", edgemap_8uc1_img);
+	auto end = std::chrono::system_clock::now();
+
+	std::chrono::duration<double> elapsed_seconds = end - start;
+	std::time_t end_time = std::chrono::system_clock::to_time_t(end);
+
+	std::cout << "finished computation at " << std::ctime(&end_time)
+		<< "elapsed time: " << elapsed_seconds.count() << "s\n";
+
+	cv::imshow(windowNames[2], edgemap_8uc1_img);
 	cv::waitKey(0);
 
 	// create images according to data from the source file
