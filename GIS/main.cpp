@@ -76,6 +76,15 @@ void fill_step(cv::Mat & edgemap_8uc1_img, cv::Mat & heightmap_show_8uc3_img, co
 
 } //fill_step
 
+cv::Vec3f get_random_color() {
+	return cv::Vec3f((rand() % 256 + 1), (rand() % 256 + 1), (rand() % 256 + 1));
+}
+
+cv::Point lookForMatrix[]{
+						cv::Point(1, 0),
+		cv::Point(0, 1),				cv::Point(0, -1),
+						cv::Point(-1, 0)
+};
 
 /**
  * Perform flood fill from the specified point (x, y). The function remembers the value at the coordinate (x, y)
@@ -86,9 +95,39 @@ void fill_step(cv::Mat & edgemap_8uc1_img, cv::Mat & heightmap_show_8uc3_img, co
  * heightmap_show_8uc3_img - image, in which we display the filling
  */
 void flood_fill(cv::Mat & edgemap_8uc1_img, cv::Mat & heightmap_show_8uc3_img, const int x, const int y) {
-	cv::Mat tmp_edgemap_8uc1_img;
+	const int reverse_x = y;
+	const int reverse_y = x;
 
-} //flood_fill
+	cv::Mat colorizeMapBuffer = cv::Mat::zeros(edgemap_8uc1_img.size(), edgemap_8uc1_img.type());
+	colorizeMapBuffer.at<uchar>(reverse_y, reverse_x) = 255;
+
+	std::vector<cv::Point> colorizePixels;
+	colorizePixels.push_back(cv::Point(reverse_y, reverse_x));
+	
+	cv::Vec3f randomColor = get_random_color();
+
+	while (!colorizePixels.empty()) {
+		cv::Point point = colorizePixels[colorizePixels.size() - 1];
+		
+		colorizePixels.pop_back();
+
+		for (int i = 0; i < 4; i++) {
+			cv::Point pointToCheck = point + lookForMatrix[i];
+
+			if (pointToCheck.x > 0 && pointToCheck.y > 0 && pointToCheck.x < edgemap_8uc1_img.cols - 1 && pointToCheck.y < edgemap_8uc1_img.rows - 1) {
+				uchar mapBufferValue = colorizeMapBuffer.at<uchar>(pointToCheck.y, pointToCheck.x);
+
+				if (mapBufferValue != 255 && edgemap_8uc1_img.at<uchar>(pointToCheck.y, pointToCheck.x) == edgemap_8uc1_img.at<uchar>(point.y, point.x)) {
+					colorizePixels.push_back(pointToCheck);
+
+					colorizeMapBuffer.at<uchar>(pointToCheck.y, pointToCheck.x) = 255;
+				}
+			}
+		}
+
+		heightmap_show_8uc3_img.at<cv::Vec3b>(point.y, point.x) = randomColor;
+	}
+}
 
 
 /**
@@ -196,9 +235,9 @@ void binarize_image(cv::Mat & src_8uc1_img) {
 
 
 void dilate_and_erode_edgemap(cv::Mat & edgemap_8uc1_img) {
-	cv::Mat tmp = cv::Mat::zeros(edgemap_8uc1_img.size(), edgemap_8uc1_img.type());
+	cv::Mat tmp_edgemap_8uc1_img = cv::Mat::zeros(edgemap_8uc1_img.size(), edgemap_8uc1_img.type());
 
-	//// dilate
+	// dilate
 	edgemap_8uc1_img.forEach<uchar>([&](uchar &pixel, const int *position) {
 		int y = position[0], x = position[1];
 
@@ -206,22 +245,22 @@ void dilate_and_erode_edgemap(cv::Mat & edgemap_8uc1_img) {
 			x > 0 && x < edgemap_8uc1_img.cols) {
 
 			if (pixel == 255) {
-				tmp.at<uchar>(y - 1, x - 1) = 255;
-				tmp.at<uchar>(y - 1, x + 0) = 255;
-				tmp.at<uchar>(y - 1, x + 1) = 255;
-				tmp.at<uchar>(y + 0, x - 1) = 255;
-				tmp.at<uchar>(y + 0, x + 0) = 255;
-				tmp.at<uchar>(y + 0, x + 1) = 255;
-				tmp.at<uchar>(y + 1, x - 1) = 255;
-				tmp.at<uchar>(y + 1, x + 0) = 255;
-				tmp.at<uchar>(y + 1, x + 1) = 255;
+				tmp_edgemap_8uc1_img.at<uchar>(y - 1, x - 1) = 255;
+				tmp_edgemap_8uc1_img.at<uchar>(y - 1, x + 0) = 255;
+				tmp_edgemap_8uc1_img.at<uchar>(y - 1, x + 1) = 255;
+				tmp_edgemap_8uc1_img.at<uchar>(y + 0, x - 1) = 255;
+				tmp_edgemap_8uc1_img.at<uchar>(y + 0, x + 0) = 255;
+				tmp_edgemap_8uc1_img.at<uchar>(y + 0, x + 1) = 255;
+				tmp_edgemap_8uc1_img.at<uchar>(y + 1, x - 1) = 255;
+				tmp_edgemap_8uc1_img.at<uchar>(y + 1, x + 0) = 255;
+				tmp_edgemap_8uc1_img.at<uchar>(y + 1, x + 1) = 255;
 			}
 		}
 	});
 
-	tmp.copyTo(edgemap_8uc1_img);
+	tmp_edgemap_8uc1_img.copyTo(edgemap_8uc1_img);
 
-	tmp.zeros(edgemap_8uc1_img.size(), edgemap_8uc1_img.type());
+	tmp_edgemap_8uc1_img.zeros(edgemap_8uc1_img.size(), edgemap_8uc1_img.type());
 
 	// erode
 	edgemap_8uc1_img.forEach<unsigned char>([&](uchar &pixel, const int *position) {
@@ -239,15 +278,15 @@ void dilate_and_erode_edgemap(cv::Mat & edgemap_8uc1_img) {
 				edgemap_8uc1_img.at<uchar>(y + 1, x + 0) != 255 ||
 				edgemap_8uc1_img.at<uchar>(y + 1, x + 1) != 255) {
 
-				tmp.at<uchar>(y, x) = 0;
+				tmp_edgemap_8uc1_img.at<uchar>(y, x) = 0;
 			}
 			else {
-				tmp.at<uchar>(y, x) = 255;
+				tmp_edgemap_8uc1_img.at<uchar>(y, x) = 255;
 			}
 		}
 	});
 
-	tmp.copyTo(edgemap_8uc1_img);
+	tmp_edgemap_8uc1_img.copyTo(edgemap_8uc1_img);
 }
 
 
@@ -279,15 +318,17 @@ void process_lidar(const char *txt_filename, const char *bin_filename, const cha
 	make_edges(heightmap_8uc1_img, edgemap_8uc1_img);
 	binarize_image(edgemap_8uc1_img);
 	
-	std::string windowNames[] = { "Show", "Before morfologic operations", "After morfologic operations" };
+	std::string windowNames[] = { "Show", "Before morfologic operations", "After morfologic operations", "Colorized map" };
 
 	cv::namedWindow(windowNames[0]);
 	cv::namedWindow(windowNames[1]);
 	cv::namedWindow(windowNames[2]);
+	cv::namedWindow(windowNames[3]);
 
 	cv::moveWindow(windowNames[0], 0 * heightmap_8uc1_img.cols, 0 * heightmap_8uc1_img.rows);
 	cv::moveWindow(windowNames[1], 1 * edgemap_8uc1_img.cols  , 0 * edgemap_8uc1_img.rows);
 	cv::moveWindow(windowNames[2], 2 * edgemap_8uc1_img.cols  , 0 * edgemap_8uc1_img.rows);
+	cv::moveWindow(windowNames[3], 0 * edgemap_8uc1_img.cols, 1 * edgemap_8uc1_img.rows);
 
 	cv::imshow(windowNames[0], heightmap_8uc1_img);
 	cv::imshow(windowNames[1], edgemap_8uc1_img);
@@ -307,49 +348,28 @@ void process_lidar(const char *txt_filename, const char *bin_filename, const cha
 		<< "elapsed time: " << elapsed_seconds.count() << "s\n";
 
 	cv::imshow(windowNames[2], edgemap_8uc1_img);
-	cv::waitKey(0);
 
-	// create images according to data from the source file
-	/*
-	heightmap_8uc1_img = cv::Mat( cvSize( cvRound( delta_x + 0.5f ), cvRound( delta_y + 0.5f ) ), CV_8UC1 );
-	heightmap_show_8uc3_img = cv::Mat( cvSize( cvRound( delta_x + 0.5f ), cvRound( delta_y + 0.5f ) ), CV_8UC3 );
-	edgemap_8uc1_img = cv::Mat( cvSize( cvRound( delta_x + 0.5f ), cvRound( delta_y + 0.5f ) ), CV_8UC3 );
+	heightmap_show_8uc3_img = cv::Mat::zeros(heightmap_8uc1_img.size(), CV_8UC3);
 
-	create_windows( heightmap_8uc1_img.cols, heightmap_8uc1_img.rows );
-	mouse_probe = new MouseProbe( heightmap_8uc1_img, heightmap_show_8uc3_img, edgemap_8uc1_img );
+	heightmap_8uc1_img.forEach<unsigned char>([&](uchar &pixel, const int *position) {
+		int y = position[0], x = position[1];
 
-	cv::setMouseCallback( STEP1_WIN_NAME, mouse_probe_handler, mouse_probe );
-	cv::setMouseCallback( STEP2_WIN_NAME, mouse_probe_handler, mouse_probe );
+		heightmap_show_8uc3_img.at<cv::Vec3b>(y, x) = cv::Vec3b(pixel, pixel, pixel);
+	});
 
-	printf( "Image w=%d, h=%d\n", heightmap_8uc1_img.cols, heightmap_8uc1_img.rows );
-	*/
+	mouse_probe = new MouseProbe(heightmap_8uc1_img, heightmap_show_8uc3_img, edgemap_8uc1_img);
 
-	// fill the image with data from lidar scanning
-	//fill_image( bin_filename, heightmap_8uc1_img, min_x, max_x, min_y, max_y, min_z, max_z );
-	//cv::cvtColor( heightmap_8uc1_img, heightmap_show_8uc3_img, CV_GRAY2RGB );
-
-	// create edge map from the height image
-	//make_edges( heightmap_8uc1_img, edgemap_8uc1_img );
-
-	// binarize image, so we can easily process it in the next step
-	//binarize_image( edgemap_8uc1_img );
-
-	// implement image dilatation and erosion
-	//dilate_and_erode_edgemap( edgemap_8uc1_img );
-
-	//cv::imwrite( img_filename, heightmap_8uc1_img );
+	cv::setMouseCallback(windowNames[2], mouse_probe_handler, mouse_probe);
 
 	// wait here for user input using (mouse clicking)
-	/*
 	while ( 1 ) {
-		cv::imshow( STEP1_WIN_NAME, heightmap_show_8uc3_img );
-		//cv::imshow( STEP2_WIN_NAME, edgemap_8uc1_img );
+		cv::imshow(windowNames[3], heightmap_show_8uc3_img );
+		
 		int key = cv::waitKey( 10 );
 		if ( key == 'q' ) {
 			break;
 		}
 	}
-	*/
 }
 
 
