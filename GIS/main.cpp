@@ -95,14 +95,11 @@ cv::Point lookForMatrix[]{
  * heightmap_show_8uc3_img - image, in which we display the filling
  */
 void flood_fill(cv::Mat & edgemap_8uc1_img, cv::Mat & heightmap_show_8uc3_img, const int x, const int y) {
-	const int reverse_x = y;
-	const int reverse_y = x;
-
 	cv::Mat colorizeMapBuffer = cv::Mat::zeros(edgemap_8uc1_img.size(), edgemap_8uc1_img.type());
-	colorizeMapBuffer.at<uchar>(reverse_y, reverse_x) = 255;
+	colorizeMapBuffer.at<bool>(x, y) = true;
 
 	std::vector<cv::Point> colorizePixels;
-	colorizePixels.push_back(cv::Point(reverse_y, reverse_x));
+	colorizePixels.push_back(cv::Point(x, y));
 	
 	cv::Vec3f randomColor = get_random_color();
 
@@ -117,10 +114,10 @@ void flood_fill(cv::Mat & edgemap_8uc1_img, cv::Mat & heightmap_show_8uc3_img, c
 			if (pointToCheck.x > 0 && pointToCheck.y > 0 && pointToCheck.x < edgemap_8uc1_img.cols - 1 && pointToCheck.y < edgemap_8uc1_img.rows - 1) {
 				uchar mapBufferValue = colorizeMapBuffer.at<uchar>(pointToCheck.y, pointToCheck.x);
 
-				if (mapBufferValue != 255 && edgemap_8uc1_img.at<uchar>(pointToCheck.y, pointToCheck.x) == edgemap_8uc1_img.at<uchar>(point.y, point.x)) {
+				if (!mapBufferValue && edgemap_8uc1_img.at<uchar>(pointToCheck.y, pointToCheck.x) == edgemap_8uc1_img.at<uchar>(point.y, point.x)) {
 					colorizePixels.push_back(pointToCheck);
 
-					colorizeMapBuffer.at<uchar>(pointToCheck.y, pointToCheck.x) = 255;
+					colorizeMapBuffer.at<bool>(pointToCheck.y, pointToCheck.x) = true;
 				}
 			}
 		}
@@ -328,18 +325,19 @@ void process_lidar(const char *txt_filename, const char *bin_filename, const cha
 	cv::moveWindow(windowNames[0], 0 * heightmap_8uc1_img.cols, 0 * heightmap_8uc1_img.rows);
 	cv::moveWindow(windowNames[1], 1 * edgemap_8uc1_img.cols  , 0 * edgemap_8uc1_img.rows);
 	cv::moveWindow(windowNames[2], 2 * edgemap_8uc1_img.cols  , 0 * edgemap_8uc1_img.rows);
-	cv::moveWindow(windowNames[3], 0 * edgemap_8uc1_img.cols, 1 * edgemap_8uc1_img.rows);
+	cv::moveWindow(windowNames[3], 0 * edgemap_8uc1_img.cols, 0 * edgemap_8uc1_img.rows);
 
 	cv::imshow(windowNames[0], heightmap_8uc1_img);
 	cv::imshow(windowNames[1], edgemap_8uc1_img);
 
 	auto start = std::chrono::system_clock::now();
 
-	for (int i = 0; i < NUM_MORFOLOGIC_OPERATIONS; i++) {
+	for (int i = 0; i < NUM_MORFOLOGIC_OPERATIONS; i++) 
 		dilate_and_erode_edgemap(edgemap_8uc1_img);
-	}
 
 	auto end = std::chrono::system_clock::now();
+
+	cv::imshow(windowNames[2], edgemap_8uc1_img);
 
 	std::chrono::duration<double> elapsed_seconds = end - start;
 	std::time_t end_time = std::chrono::system_clock::to_time_t(end);
@@ -347,19 +345,11 @@ void process_lidar(const char *txt_filename, const char *bin_filename, const cha
 	std::cout << "finished computation at " << std::ctime(&end_time)
 		<< "elapsed time: " << elapsed_seconds.count() << "s\n";
 
-	cv::imshow(windowNames[2], edgemap_8uc1_img);
-
-	heightmap_show_8uc3_img = cv::Mat::zeros(heightmap_8uc1_img.size(), CV_8UC3);
-
-	heightmap_8uc1_img.forEach<unsigned char>([&](uchar &pixel, const int *position) {
-		int y = position[0], x = position[1];
-
-		heightmap_show_8uc3_img.at<cv::Vec3b>(y, x) = cv::Vec3b(pixel, pixel, pixel);
-	});
-
 	mouse_probe = new MouseProbe(heightmap_8uc1_img, heightmap_show_8uc3_img, edgemap_8uc1_img);
 
 	cv::setMouseCallback(windowNames[2], mouse_probe_handler, mouse_probe);
+
+	cv::cvtColor(heightmap_8uc1_img, heightmap_show_8uc3_img, CV_GRAY2BGR);
 
 	// wait here for user input using (mouse clicking)
 	while ( 1 ) {
