@@ -7,6 +7,7 @@
 #include <chrono>
 #include <opencv2/opencv.hpp>
 #include <ctime>
+#include <random>
 
 #include "defines.h"
 #include "utils.h"
@@ -15,6 +16,9 @@
 #define STEP2_WIN_NAME			  "Edges"
 #define ZOOM					  1
 #define NUM_MORFOLOGIC_OPERATIONS 2
+
+unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
+std::mt19937_64 generator(seed);
 
 struct MouseProbe {
 	cv::Mat & heightmap_8uc1_img_;
@@ -77,7 +81,9 @@ void fill_step(cv::Mat & edgemap_8uc1_img, cv::Mat & heightmap_show_8uc3_img, co
 } //fill_step
 
 cv::Vec3f get_random_color() {
-	return cv::Vec3f((rand() % 256 + 1), (rand() % 256 + 1), (rand() % 256 + 1));
+	std::uniform_real_distribution<float> dis(0.0, 255.0);
+
+	return cv::Vec3f(dis(generator), dis(generator), dis(generator));
 }
 
 cv::Point lookForMatrix[]{
@@ -112,7 +118,7 @@ void flood_fill(cv::Mat & edgemap_8uc1_img, cv::Mat & heightmap_show_8uc3_img, c
 			cv::Point pointToCheck = point + lookForMatrix[i];
 
 			if (pointToCheck.x > 0 && pointToCheck.y > 0 && pointToCheck.x < edgemap_8uc1_img.cols - 1 && pointToCheck.y < edgemap_8uc1_img.rows - 1) {
-				uchar mapBufferValue = colorizeMapBuffer.at<uchar>(pointToCheck.y, pointToCheck.x);
+				bool mapBufferValue = colorizeMapBuffer.at<bool>(pointToCheck.y, pointToCheck.x);
 
 				if (!mapBufferValue && edgemap_8uc1_img.at<uchar>(pointToCheck.y, pointToCheck.x) == edgemap_8uc1_img.at<uchar>(point.y, point.x)) {
 					colorizePixels.push_back(pointToCheck);
