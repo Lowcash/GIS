@@ -12,6 +12,8 @@
 #include "defines.h"
 #include "utils.h"
 
+#include "proj_api.h"
+
 #define STEP1_WIN_NAME			  "Heightmap"
 #define STEP2_WIN_NAME			  "Edges"
 #define ZOOM					  1
@@ -36,6 +38,26 @@ struct MouseProbe {
 // function declarations
 void flood_fill(cv::Mat & src_img, cv::Mat & dst_img, const int x, const int y);
 
+int bng_1m_accuracy(double x, double y) {
+	// e.g. x = -1.8, y = 51.18;  => Easting: 414075.69   Northing: 142326.96
+
+	projPJ pj_src, pj_dst;
+	int p;
+
+	// EPSG:4326 definition: http://spatialreference.org/ref/epsg/4326/proj4/
+	const char* src = "+proj=krovak +ellps=bessel +towgs84=570.8,85.7,462.8,4.998,1.587,5.261,3.56";
+	const char* dst = "+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs";
+
+	if (!(pj_src = pj_init_plus(src)))
+		exit(1);
+	if (!(pj_dst = pj_init_plus(dst)))
+		exit(1);
+
+	x *= DEG_TO_RAD;
+	y *= DEG_TO_RAD;
+	p = pj_transform(pj_src, pj_dst, 1, 1, &x, &y, NULL);
+	printf("%.2f\t%.2f\n", x, y);
+}
 
 /**
  * Mouse clicking callback.
@@ -293,6 +315,25 @@ void dilate_and_erode_edgemap(cv::Mat & edgemap_8uc1_img) {
 }
 
 
+void write_to_image(cv::Mat input_img, cv::Mat input_height_img, cv::Mat & output_img, const char* file_name) {
+	input_img.forEach<cv::Vec3b>([&](cv::Vec3b &pixel, const int *position) {
+		int y = position[0], x = position[1];
+
+		uchar height = input_height_img.at<uchar>(y, x);
+
+		output_img.at<cv::Vec4b>(y, x) = cv::Vec4b(pixel.val[0], pixel.val[1], pixel.val[2], (int)height == 0 ? 0 : 255.0f);
+	});
+
+	cv::flip(output_img, output_img, 0);
+
+	std::vector<int> compression_params; // Stores the compression parameters
+
+	compression_params.push_back(CV_IMWRITE_PXM_BINARY); // Set to PXM compression
+	compression_params.push_back(0); // Set type of PXM in our case PGM
+
+	cv::imwrite(file_name, output_img);
+}
+
 void process_lidar(const char *txt_filename, const char *bin_filename, const char *img_filename) {
 	float min_x, max_x, min_y, max_y, min_z, max_z;
 	float delta_x, delta_y, delta_z;
@@ -315,6 +356,9 @@ void process_lidar(const char *txt_filename, const char *bin_filename, const cha
 	printf("delta x: %f\n", delta_x);
 	printf("delta y: %f\n", delta_y);
 	printf("delta z: %f\n", delta_z);
+
+	//bng_1m_accuracy(min_x, min_y);
+	//bng_1m_accuracy(max_x, max_y);
 
 	fill_image(bin_filename, heightmap_8uc1_img, min_x, max_x, min_y, max_y, min_z, max_z);
 
@@ -357,9 +401,13 @@ void process_lidar(const char *txt_filename, const char *bin_filename, const cha
 
 	cv::cvtColor(heightmap_8uc1_img, heightmap_show_8uc3_img, CV_GRAY2BGR);
 
+	//cv::Mat output_img = cv::Mat::zeros(heightmap_8uc1_img.size(), CV_8UC4);
+
+	//write_to_image(heightmap_show_8uc3_img, heightmap_8uc1_img, output_img, "lidar_output.png");
+
 	// wait here for user input using (mouse clicking)
 	while ( 1 ) {
-		cv::imshow(windowNames[3], heightmap_show_8uc3_img );
+		cv::imshow(windowNames[3], heightmap_show_8uc3_img);
 		
 		int key = cv::waitKey( 10 );
 		if ( key == 'q' ) {
