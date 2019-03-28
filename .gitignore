@@ -259,3 +259,17 @@ paket-files/
 # Python Tools for Visual Studio (PTVS)
 __pycache__/
 *.pyc
+/GIS/pt000020.bin
+/GIS/pt000019.bin
+/GIS/pt000018.bin
+/GIS/pt000017.bin
+/GIS/pt000016.bin
+/GIS/pt000015.bin
+/GIS/pt000011.bin
+/GIS/pt000009.bin
+/GIS/pt000008.bin
+/GIS/pt000006.bin
+/GIS/pt000005.bin
+/GIS/pt000004.bin
+/GIS/pt000002.bin
+/GIS/pt000001.bin

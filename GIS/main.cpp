@@ -48,9 +48,9 @@ int bng_1m_accuracy(double x, double y) {
 	const char* src = "+proj=krovak +ellps=bessel +towgs84=570.8,85.7,462.8,4.998,1.587,5.261,3.56";
 	const char* dst = "+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs";
 
-	if (!(pj_src = pj_init_plus(src)))
+	if(!(pj_src = pj_init_plus(src)))
 		exit(1);
-	if (!(pj_dst = pj_init_plus(dst)))
+	if(!(pj_dst = pj_init_plus(dst)))
 		exit(1);
 
 	x *= DEG_TO_RAD;
@@ -65,14 +65,14 @@ int bng_1m_accuracy(double x, double y) {
 void mouse_probe_handler(int event, int x, int y, int flags, void* param) {
 	MouseProbe *probe = (MouseProbe*)param;
 
-	switch (event) {
+	switch(event) {
 
-	case CV_EVENT_LBUTTONDOWN:
+		case CV_EVENT_LBUTTONDOWN:
 		printf("Clicked LEFT at: [ %d, %d ]\n", x, y);
 		flood_fill(probe->edgemap_8uc1_img_, probe->heightmap_show_8uc3_img_, x, y);
 		break;
 
-	case CV_EVENT_RBUTTONDOWN:
+		case CV_EVENT_RBUTTONDOWN:
 		printf("Clicked RIGHT at: [ %d, %d ]\n", x, y);
 		break;
 	}
@@ -128,21 +128,21 @@ void flood_fill(cv::Mat & edgemap_8uc1_img, cv::Mat & heightmap_show_8uc3_img, c
 
 	std::vector<cv::Point> colorizePixels;
 	colorizePixels.push_back(cv::Point(x, y));
-	
+
 	cv::Vec3f randomColor = get_random_color();
 
-	while (!colorizePixels.empty()) {
+	while(!colorizePixels.empty()) {
 		cv::Point point = colorizePixels[colorizePixels.size() - 1];
-		
+
 		colorizePixels.pop_back();
 
-		for (int i = 0; i < 4; i++) {
+		for(int i = 0; i < 4; i++) {
 			cv::Point pointToCheck = point + lookForMatrix[i];
 
-			if (pointToCheck.x > 0 && pointToCheck.y > 0 && pointToCheck.x < edgemap_8uc1_img.cols - 1 && pointToCheck.y < edgemap_8uc1_img.rows - 1) {
+			if(pointToCheck.x > 0 && pointToCheck.y > 0 && pointToCheck.x < edgemap_8uc1_img.cols - 1 && pointToCheck.y < edgemap_8uc1_img.rows - 1) {
 				bool mapBufferValue = colorizeMapBuffer.at<bool>(pointToCheck.y, pointToCheck.x);
 
-				if (!mapBufferValue && edgemap_8uc1_img.at<uchar>(pointToCheck.y, pointToCheck.x) == edgemap_8uc1_img.at<uchar>(point.y, point.x)) {
+				if(!mapBufferValue && edgemap_8uc1_img.at<uchar>(pointToCheck.y, pointToCheck.x) == edgemap_8uc1_img.at<uchar>(point.y, point.x)) {
 					colorizePixels.push_back(pointToCheck);
 
 					colorizeMapBuffer.at<bool>(pointToCheck.y, pointToCheck.x) = true;
@@ -154,35 +154,40 @@ void flood_fill(cv::Mat & edgemap_8uc1_img, cv::Mat & heightmap_show_8uc3_img, c
 	}
 }
 
-
 /**
  * Find the minimum and maximum coordinates in the file.
  * Note that the file is the S-JTSK coordinate system.
  */
-void get_min_max(const char *filename, float *a_min_x, float *a_max_x, float *a_min_y, float *a_max_y, float *a_min_z, float *a_max_z) {
+void get_min_max(std::vector<const char*> filenames, float *a_min_x, float *a_max_x, float *a_min_y, float *a_max_y, float *a_min_z, float *a_max_z) {
 	float x, y, z;
 	float min_x, min_y, min_z, max_x, max_y, max_z;
 	int l_type;
-	
-	std::ifstream fin(filename, std::ios::binary);
 
 	min_x = min_y = min_z = INT32_MAX;
 	max_x = max_y = max_z = INT32_MIN;
 
-	while (fin.read(reinterpret_cast<char*>(&x), sizeof(float))) {
-		fin.read(reinterpret_cast<char*>(&y), sizeof(float));
-		fin.read(reinterpret_cast<char*>(&z), sizeof(float));
-		fin.read(reinterpret_cast<char*>(&l_type), sizeof(int));
+	for(int i = 0; i < filenames.size(); i++) {
+		printf("Processing size of image %s\n", filenames.at(i));
 
-		min_x = std::min(x, min_x);
-		min_y = std::min(y, min_y);
-		min_z = std::min(z, min_z);
+		std::ifstream fin(filenames.at(i), std::ios::binary);
+		while(fin.read(reinterpret_cast<char*>(&x), sizeof(float))) {
+			fin.read(reinterpret_cast<char*>(&y), sizeof(float));
+			fin.read(reinterpret_cast<char*>(&z), sizeof(float));
 
-		max_x = std::max(x, max_x);
-		max_y = std::max(y, max_y);
-		max_z = std::max(z, max_z);
+			if(filenames.at(i) == "pt000023.bin") {
+				fin.read(reinterpret_cast<char*>(&l_type), sizeof(int));
+			}
+
+			min_x = std::min(min_x, x);
+			min_y = std::min(min_y, y);
+			min_z = std::min(min_z, z);
+
+			max_x = std::max(max_x, x);
+			max_y = std::max(max_y, y);
+			max_z = std::max(max_z, z);
+		}
 	}
-
+	
 	*a_min_x = min_x;
 	*a_min_y = min_y;
 	*a_min_z = min_z;
@@ -190,6 +195,8 @@ void get_min_max(const char *filename, float *a_min_x, float *a_max_x, float *a_
 	*a_max_x = max_x;
 	*a_max_y = max_y;
 	*a_max_z = max_z;
+
+	printf("\n\n");
 }
 
 
@@ -200,7 +207,7 @@ void get_min_max(const char *filename, float *a_min_x, float *a_max_x, float *a_
  * filename - file with binarny data
  * img - input image
  */
-void fill_image(const char *filename, cv::Mat & heightmap_8uc1_img, float min_x, float max_x, float min_y, float max_y, float min_z, float max_z) {
+void fill_image(std::vector<const char*> filenames, cv::Mat & heightmap_8uc1_img, float min_x, float max_x, float min_y, float max_y, float min_z, float max_z) {
 	float fx, fy, fz;
 	int l_type;
 
@@ -214,15 +221,22 @@ void fill_image(const char *filename, cv::Mat & heightmap_8uc1_img, float min_x,
 	cv::Mat mass = cv::Mat::zeros(cv::Size(delta_x + 1, delta_y + 1), CV_32FC1);
 	cv::Mat mass_count = cv::Mat::zeros(cv::Size(delta_x + 1, delta_y + 1), CV_32FC1);
 
-	std::ifstream fin(filename, std::ios::binary);
+	for(int i = 0; i < filenames.size(); i++) {
+		printf("Filling image %s\n", filenames.at(i));
 
-	while (fin.read(reinterpret_cast<char*>(&fx), sizeof(float))) {
-		fin.read(reinterpret_cast<char*>(&fy), sizeof(float));
-		fin.read(reinterpret_cast<char*>(&fz), sizeof(float));
-		fin.read(reinterpret_cast<char*>(&l_type), sizeof(int));
+		std::ifstream fin(filenames.at(i), std::ios::binary);
 
-		mass.at<float>(heightmap_8uc1_img.rows - (int)round(max_y - fy + 0.5f) - 1, heightmap_8uc1_img.cols - (int)round(max_x - fx + 0.5f) - 1) += fz;
-		mass_count.at<int>(heightmap_8uc1_img.rows - (int)round(max_y - fy + 0.5f) - 1, heightmap_8uc1_img.cols - (int)round(max_x - fx + 0.5f) - 1)++;
+		while(fin.read(reinterpret_cast<char*>(&fx), sizeof(float))) {
+			fin.read(reinterpret_cast<char*>(&fy), sizeof(float));
+			fin.read(reinterpret_cast<char*>(&fz), sizeof(float));
+
+			if(filenames.at(i) == "pt000023.bin") {
+				fin.read(reinterpret_cast<char*>(&l_type), sizeof(int));
+			}
+
+			mass.at<float>(heightmap_8uc1_img.rows - (int)round(max_y - fy + 0.5f) - 1, heightmap_8uc1_img.cols - (int)round(max_x - fx + 0.5f) - 1) += fz;
+			mass_count.at<int>(heightmap_8uc1_img.rows - (int)round(max_y - fy + 0.5f) - 1, heightmap_8uc1_img.cols - (int)round(max_x - fx + 0.5f) - 1)++;
+		}
 	}
 
 	mass.forEach<uchar>([&](uchar &pixel, const int *position) {
@@ -236,10 +250,10 @@ void fill_image(const char *filename, cv::Mat & heightmap_8uc1_img, float min_x,
 		float fullPercent = max_z - min_z;
 		float actualPercent = average - min_z;
 
-		if (count > 0) {
-			heightmap_8uc1_img.at<uchar>(y, x) = (actualPercent / fullPercent) * 255.0f;
-		}
+		if(count > 0) heightmap_8uc1_img.at<uchar>(y, x) = (actualPercent / fullPercent) * 255.0f;
 	});
+
+	printf("\n\n");
 }
 
 
@@ -266,10 +280,10 @@ void dilate_and_erode_edgemap(cv::Mat & edgemap_8uc1_img) {
 	edgemap_8uc1_img.forEach<uchar>([&](uchar &pixel, const int *position) {
 		int y = position[0], x = position[1];
 
-		if (y > 0 && y < edgemap_8uc1_img.rows &&
+		if(y > 0 && y < edgemap_8uc1_img.rows &&
 			x > 0 && x < edgemap_8uc1_img.cols) {
 
-			if (pixel == 255) {
+			if(pixel == 255) {
 				tmp_edgemap_8uc1_img.at<uchar>(y - 1, x - 1) = 255;
 				tmp_edgemap_8uc1_img.at<uchar>(y - 1, x + 0) = 255;
 				tmp_edgemap_8uc1_img.at<uchar>(y - 1, x + 1) = 255;
@@ -290,10 +304,10 @@ void dilate_and_erode_edgemap(cv::Mat & edgemap_8uc1_img) {
 	// erode
 	edgemap_8uc1_img.forEach<unsigned char>([&](uchar &pixel, const int *position) {
 		int y = position[0], x = position[1];
-		if (y > 0 && y < edgemap_8uc1_img.rows &&
+		if(y > 0 && y < edgemap_8uc1_img.rows &&
 			x > 0 && x < edgemap_8uc1_img.cols) {
 
-			if (edgemap_8uc1_img.at<uchar>(y - 1, x - 1) != 255 ||
+			if(edgemap_8uc1_img.at<uchar>(y - 1, x - 1) != 255 ||
 				edgemap_8uc1_img.at<uchar>(y - 1, x + 0) != 255 ||
 				edgemap_8uc1_img.at<uchar>(y - 1, x + 1) != 255 ||
 				edgemap_8uc1_img.at<uchar>(y + 0, x - 1) != 255 ||
@@ -304,8 +318,7 @@ void dilate_and_erode_edgemap(cv::Mat & edgemap_8uc1_img) {
 				edgemap_8uc1_img.at<uchar>(y + 1, x + 1) != 255) {
 
 				tmp_edgemap_8uc1_img.at<uchar>(y, x) = 0;
-			}
-			else {
+			} else {
 				tmp_edgemap_8uc1_img.at<uchar>(y, x) = 255;
 			}
 		}
@@ -334,16 +347,23 @@ void write_to_image(cv::Mat input_img, cv::Mat input_height_img, cv::Mat & outpu
 	cv::imwrite(file_name, output_img);
 }
 
-void process_lidar(const char *txt_filename, const char *bin_filename, const char *img_filename) {
-	float min_x, max_x, min_y, max_y, min_z, max_z;
-	float delta_x, delta_y, delta_z;
+void process_lidar(const char *txt_filename, std::vector<const char*> bin_filenames, const char *img_filename) {
+	
 	MouseProbe *mouse_probe;
 
 	cv::Mat heightmap_8uc1_img;      // image of source of lidar data
 	cv::Mat heightmap_show_8uc3_img; // image to detected areas
 	cv::Mat edgemap_8uc1_img;        // image for edges
 
-	get_min_max(bin_filename, &min_x, &max_x, &min_y, &max_y, &min_z, &max_z);
+	float absolute_min_x, absolute_min_y, absolute_min_z, absolute_max_x, absolute_max_y, absolute_max_z;
+	float absolute_delta_x, absolute_delta_y, absolute_delta_z;
+	float min_x, max_x, min_y, max_y, min_z, max_z;
+	float delta_x, delta_y, delta_z;
+
+	absolute_min_x = absolute_min_y = absolute_min_z = INT32_MAX;
+	absolute_max_x = absolute_max_y = absolute_max_z = INT32_MIN;
+
+	get_min_max(bin_filenames, &min_x, &max_x, &min_y, &max_y, &min_z, &max_z);
 
 	printf("min x: %f, max x: %f\n", min_x, max_x);
 	printf("min y: %f, max y: %f\n", min_y, max_y);
@@ -357,14 +377,18 @@ void process_lidar(const char *txt_filename, const char *bin_filename, const cha
 	printf("delta y: %f\n", delta_y);
 	printf("delta z: %f\n", delta_z);
 
+	printf("\n\n");
+
 	//bng_1m_accuracy(min_x, min_y);
 	//bng_1m_accuracy(max_x, max_y);
 
-	fill_image(bin_filename, heightmap_8uc1_img, min_x, max_x, min_y, max_y, min_z, max_z);
+	fill_image(bin_filenames, heightmap_8uc1_img, min_x, max_x, min_y, max_y, min_z, max_z);
+
+	cv::resize(heightmap_8uc1_img, heightmap_8uc1_img, cv::Size(heightmap_8uc1_img.cols * 0.2f, heightmap_8uc1_img.rows * 0.2f));
 
 	make_edges(heightmap_8uc1_img, edgemap_8uc1_img);
 	binarize_image(edgemap_8uc1_img);
-	
+
 	std::string windowNames[] = { "Show", "Before morfologic operations", "After morfologic operations", "Colorized map" };
 
 	cv::namedWindow(windowNames[0]);
@@ -373,8 +397,8 @@ void process_lidar(const char *txt_filename, const char *bin_filename, const cha
 	cv::namedWindow(windowNames[3]);
 
 	cv::moveWindow(windowNames[0], 0 * heightmap_8uc1_img.cols, 0 * heightmap_8uc1_img.rows);
-	cv::moveWindow(windowNames[1], 1 * edgemap_8uc1_img.cols  , 0 * edgemap_8uc1_img.rows);
-	cv::moveWindow(windowNames[2], 2 * edgemap_8uc1_img.cols  , 0 * edgemap_8uc1_img.rows);
+	cv::moveWindow(windowNames[1], 1 * edgemap_8uc1_img.cols, 0 * edgemap_8uc1_img.rows);
+	cv::moveWindow(windowNames[2], 2 * edgemap_8uc1_img.cols, 0 * edgemap_8uc1_img.rows);
 	cv::moveWindow(windowNames[3], 0 * edgemap_8uc1_img.cols, 0 * edgemap_8uc1_img.rows);
 
 	cv::imshow(windowNames[0], heightmap_8uc1_img);
@@ -382,7 +406,7 @@ void process_lidar(const char *txt_filename, const char *bin_filename, const cha
 
 	auto start = std::chrono::system_clock::now();
 
-	for (int i = 0; i < NUM_MORFOLOGIC_OPERATIONS; i++) 
+	for(int i = 0; i < NUM_MORFOLOGIC_OPERATIONS; i++)
 		dilate_and_erode_edgemap(edgemap_8uc1_img);
 
 	auto end = std::chrono::system_clock::now();
@@ -406,11 +430,11 @@ void process_lidar(const char *txt_filename, const char *bin_filename, const cha
 	//write_to_image(heightmap_show_8uc3_img, heightmap_8uc1_img, output_img, "lidar_output.png");
 
 	// wait here for user input using (mouse clicking)
-	while ( 1 ) {
+	while(1) {
 		cv::imshow(windowNames[3], heightmap_show_8uc3_img);
-		
-		int key = cv::waitKey( 10 );
-		if ( key == 'q' ) {
+
+		int key = cv::waitKey(10);
+		if(key == 'q') {
 			break;
 		}
 	}
@@ -418,18 +442,37 @@ void process_lidar(const char *txt_filename, const char *bin_filename, const cha
 
 
 int main(int argc, char *argv[]) {
+	std::vector<const char*> bin_files;
 	char *txt_file, *bin_file, *img_file;
 
-	if (argc < 4) {
+	if(argc < 4) {
 		printf("Not enough command line parameters.\n");
 		exit(1);
 	}
 
+	bin_files.push_back("pt000001.bin"); // 0
+	bin_files.push_back("pt000002.bin"); // 1
+	bin_files.push_back("pt000004.bin"); // 2
+	bin_files.push_back("pt000005.bin"); // 3
+	bin_files.push_back("pt000006.bin"); // 4
+	bin_files.push_back("pt000008.bin"); // 5
+	bin_files.push_back("pt000009.bin"); // 6
+	bin_files.push_back("pt000011.bin"); // 7
+	bin_files.push_back("pt000015.bin"); // 8
+	bin_files.push_back("pt000016.bin"); // 9
+	bin_files.push_back("pt000017.bin"); //10
+	bin_files.push_back("pt000018.bin"); //11
+	bin_files.push_back("pt000019.bin"); //12
+	bin_files.push_back("pt000020.bin"); //13
+	bin_files.push_back("pt000023.bin"); //14
+
 	txt_file = argv[1];
-	bin_file = argv[2];
+	bin_file = (char*)bin_files.at(14);
 	img_file = argv[3];
 
-	process_lidar(txt_file, bin_file, img_file);
+	process_lidar(txt_file, bin_files, img_file);
+
+	delete bin_file;
 
 	return 0;
 }
